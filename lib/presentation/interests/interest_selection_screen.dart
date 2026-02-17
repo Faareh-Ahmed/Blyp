@@ -89,10 +89,12 @@ class _InterestSelectionScreenState
                               color: Theme.of(context).colorScheme.primary,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Icon(
-                              Icons.flash_on,
-                              size: 16,
-                              color: Colors.white,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.asset(
+                                'assets/logo/logobg.png',
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 8),

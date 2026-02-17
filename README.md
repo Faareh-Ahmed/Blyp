@@ -19,7 +19,33 @@ Blyp is a modern Flutter application designed to connect strangers for fleeting,
 -   **Backend (Planned)**: [Supabase](https://supabase.com/) for Authentication and Realtime database.
 -   **Asset Generation**: `flutter_gen` (planned).
 
+## 📂 Directory Structure
+
+The project follows a **Feature-First Clean Architecture** within the `lib` folder to ensure scalability and maintainability:
+
+```
+lib/
+├── core/                  # Core functionality (Theme, Constants, Utilities)
+│   └── theme/             # App Theme definitions
+├── data/                  # Data layer (Repositories, Data Sources)
+├── domain/                # Domain layer (Entities, Use Cases)
+├── presentation/          # UI layer (Screens, Widgets, Controllers)
+│   ├── chat/              # Chat screen and logic
+│   ├── interests/         # Interest selection feature
+│   ├── landing/           # Landing page
+│   ├── matching/          # Matching mechanics and UI
+│   └── responsive_wrapper.dart # Wrapper for responsive layout
+└── main.dart              # Entry point and routing configuration
+```
+
 ## 📱 App Flow & Implementation Status
+
+The user journey is designed to be frictionless and immersive:
+
+1.  **Onboarding**: Users land on a visually striking welcome screen and proceed as anonymous users.
+2.  **Personalization**: Users select their interests from a curated list to help the matching algorithm.
+3.  **Discovery**: A radar-like matching screen searches for other users with similar interests.
+4.  **Connection**: Once matched, users enter a private chat room to converse.
 
 ### 1. Landing Screen (`/`)
 -   **Status**: ✅ Completed
@@ -60,24 +86,36 @@ The app uses a `GoRouter` configuration in `main.dart`.
 
 ## 🏃‍♂️ Getting Started
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/yourusername/blyp_app.git
-    cd blyp_app
-    ```
+### 1. Prerequisites
+- Flutter SDK
+- Supabase CLI (`npm install -g supabase`)
 
-2.  **Install Dependencies**:
-    ```bash
-    flutter pub get
-    ```
+### 2. Installation
+```bash
+git clone https://github.com/Faareh-Ahmed/Blyp.git
+cd Blyp
+flutter pub get
+```
 
-3.  **Run the App**:
-    ```bash
-    flutter run
-    ```
+### 3. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+SUPABASE_URL=your_project_url
+SUPABASE_ANON_KEY=your_anon_key
+```
 
-4.  **Supabase Setup (Future)**:
-    -   Update `main.dart` with your `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
+### 4. Database Setup (Supabase)
+Initialize and push the schema to your remote project:
+```bash
+supabase login
+supabase link --project-ref your_project_ref
+supabase db push
+```
+
+### 5. Run the App
+```bash
+flutter run
+```
 
 ## 🔮 Roadmap
 

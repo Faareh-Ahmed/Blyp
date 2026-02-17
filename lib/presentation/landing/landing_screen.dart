@@ -118,10 +118,12 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                             ),
                           ],
                         ),
-                        child: Icon(
-                          Icons.chat_bubble_outline_rounded,
-                          size: 100,
-                          color: Theme.of(context).colorScheme.secondary,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Image.asset(
+                            'assets/logo/logobg.png',
+                            fit: BoxFit.contain,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 40),
