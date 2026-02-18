@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:blyp_app/presentation/matching/match_controller.dart';
+import 'package:blyp_app/domain/models/match_result.dart';
 
 class MatchingScreen extends ConsumerStatefulWidget {
   const MatchingScreen({super.key});
@@ -14,9 +16,9 @@ class MatchingScreen extends ConsumerStatefulWidget {
 
 class _MatchingScreenState extends ConsumerState<MatchingScreen>
     with TickerProviderStateMixin {
+  late AppLifecycleListener _listener;
   late AnimationController _sweepController;
   late AnimationController _pulseController;
-  bool _isSearching = true;
 
   @override
   void initState() {
@@ -31,38 +33,36 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
       duration: const Duration(seconds: 3),
     )..repeat();
 
-    _startMatchmaking();
+    // Start searching immediately
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(matchControllerProvider.notifier).startSearching();
+    });
+
+    _listener = AppLifecycleListener(onStateChange: _onStateChanged);
   }
 
-  Future<void> _startMatchmaking() async {
-    try {
-      // Simulate finding a match
-      await Future.delayed(const Duration(seconds: 5));
-
-      if (mounted && _isSearching) {
-        // Use pushReplacement so back button from chat goes to interests, skipping matching
-        context.pushReplacement('/chat', extra: 'room_123');
-      }
-    } catch (e) {
+  void _onStateChanged(AppLifecycleState state) {
+    // If the app is hidden (backgrounded) or inactive, we might want to cancel search
+    // to avoid phantom matches or battery usage.
+    if (state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.inactive) {
+      ref.read(matchControllerProvider.notifier).cancelSearch();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error finding match: $e')));
-        context.pop(); // Go back to interests on error
+        context.pop(); // Exit screen
       }
     }
   }
 
   @override
   void dispose() {
-    _isSearching = false;
+    _listener.dispose();
     _sweepController.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
   void _cancelSearch() {
-    _isSearching = false;
+    ref.read(matchControllerProvider.notifier).cancelSearch();
     context.pop();
   }
 
@@ -70,6 +70,8 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
   Widget build(BuildContext context) {
     final primaryColor = const Color(0xFF3C83F6); // Electric Blue
     final neonColor = const Color(0xFF22C55E); // Neon Green
+
+    _listenToMatchState();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A), // background-dark
@@ -433,15 +435,22 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
                                       ), // slate-300
                                       fontWeight: FontWeight.w500,
                                     ),
-                                    children: const [
+                                    children: [
                                       TextSpan(
-                                        text: '2,482 ',
-                                        style: TextStyle(
+                                        text: ref
+                                            .watch(onlineUsersProvider)
+                                            .when(
+                                              data: (count) =>
+                                                  '${count > 0 ? count : 1} ',
+                                              error: (_, __) => '... ',
+                                              loading: () => '... ',
+                                            ),
+                                        style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      TextSpan(text: 'users online now'),
+                                      const TextSpan(text: 'users online now'),
                                     ],
                                   ),
                                 ),
@@ -485,6 +494,29 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
         ],
       ),
     );
+  }
+
+  void _listenToMatchState() {
+    ref.listen<AsyncValue<MatchResult?>>(matchControllerProvider, (
+      previous,
+      next,
+    ) {
+      next.when(
+        data: (matchResult) {
+          if (matchResult != null) {
+            context.pushReplacement('/chat', extra: matchResult.roomId);
+          }
+        },
+        error: (error, stack) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error finding match: $error')),
+          );
+          // Optional: Retry logic or pop?
+          // For now, let's just show error. User can cancel.
+        },
+        loading: () {},
+      );
+    });
   }
 
   Widget _buildPulsingRing(

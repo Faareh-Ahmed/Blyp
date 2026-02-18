@@ -1,13 +1,13 @@
 # Blyp - Anonymous Interest-Based Chat
 
-Blyp is a modern Flutter application designed to connect strangers for fleeting, meaningful conversations based on shared interests. It features a high-fidelity, dark-themed UI with neon accents coverage, glassmorphism effects, and fluid animations.
+Blyp is a modern Flutter application designed to connect strangers for fleeting, meaningful conversations based on shared interests. It features a high-fidelity, dark-themed UI with neon accents, glassmorphism effects, and fluid animations.
 
 ## 🚀 Project Goals
 
--   **Anonymity**: No complex sign-ups. users can start chatting instantly.
+-   **Anonymity**: No complex sign-ups. Users can start chatting instantly with Anonymous Authentication.
 -   **Interest-Based Matching**: Connect with people who share your passions (Gaming, Tech, Music, etc.).
 -   **Visual Excellence**: A premium, "cyberpunk-lite" aesthetic with smooth interactions.
--   **Privacy**: Built with a "privacy-first" mindset (End-to-End Encryption planned).
+-   **Privacy**: Built with a privacy-first mindset (Anonymous by default).
 
 ## 🛠 Tech Stack
 
@@ -16,8 +16,10 @@ Blyp is a modern Flutter application designed to connect strangers for fleeting,
 -   **State Management**: [Riverpod](https://riverpod.dev/)
 -   **Navigation**: [GoRouter](https://pub.dev/packages/go_router)
 -   **Styling**: Custom `ThemeData` with `GoogleFonts` (Plus Jakarta Sans, Inter).
--   **Backend (Planned)**: [Supabase](https://supabase.com/) for Authentication and Realtime database.
--   **Asset Generation**: `flutter_gen` (planned).
+-   **Backend**: [Supabase](https://supabase.com/)
+    -   **Authentication**: Anonymous Sign-ins.
+    -   **Realtime**: Presence (Online Users) and Postgres Changes (Matchmaking).
+    -   **Database**: Postgres with Row Level Security (RLS).
 
 ## 📂 Directory Structure
 
@@ -28,12 +30,14 @@ lib/
 ├── core/                  # Core functionality (Theme, Constants, Utilities)
 │   └── theme/             # App Theme definitions
 ├── data/                  # Data layer (Repositories, Data Sources)
+│   └── repositories/      # MatchRepository (Supabase interactions)
 ├── domain/                # Domain layer (Entities, Use Cases)
+│   └── models/            # MatchResult, UserProfile
 ├── presentation/          # UI layer (Screens, Widgets, Controllers)
-│   ├── chat/              # Chat screen and logic
+│   ├── chat/              # Chat screen and Realtime logic
 │   ├── interests/         # Interest selection feature
-│   ├── landing/           # Landing page
-│   ├── matching/          # Matching mechanics and UI
+│   ├── landing/           # Landing page with Auth logic
+│   ├── matching/          # Matching mechanics (Radar UI, Presence)
 │   └── responsive_wrapper.dart # Wrapper for responsive layout
 └── main.dart              # Entry point and routing configuration
 ```
@@ -42,18 +46,12 @@ lib/
 
 The user journey is designed to be frictionless and immersive:
 
-1.  **Onboarding**: Users land on a visually striking welcome screen and proceed as anonymous users.
-2.  **Personalization**: Users select their interests from a curated list to help the matching algorithm.
-3.  **Discovery**: A radar-like matching screen searches for other users with similar interests.
-4.  **Connection**: Once matched, users enter a private chat room to converse.
-
 ### 1. Landing Screen (`/`)
 -   **Status**: ✅ Completed
 -   **Features**:
-    -    immersive radial gradient background.
-    -   Blurred ambient light orbs.
-    -   "Start Anonymous Chat" with glow effects.
-    -   Supabase Auth bypass for development ease.
+    -   **Anonymous Authentication**: Automatically signs users in anonymously via Supabase Auth on entry.
+    -   **Profile Creation**: silently creates a `profiles` entry for the new anonymous user.
+    -   **UI**: Immersive radial gradient background with blurred ambient light orbs and "Start" interaction.
 
 ### 2. Interest Selection (`/interests`)
 -   **Status**: ✅ Completed
@@ -64,31 +62,43 @@ The user journey is designed to be frictionless and immersive:
     -   Direct navigation to matching.
 
 ### 3. Matching Screen (`/matching`)
--   **Status**: ✅ Completed
+-   **Status**: ✅ Completed (Realtime Integration)
 -   **Features**:
-    -   Complex radar sweep animation using `AnimationController`.
-    -   Pulsing "signal" rings.
-    -   Glassmorphism stats badge & radar container.
-    -   Simulated finding delay (5s).
-    -   "Cancel" navigation logic.
+    -   **Realtime Matchmaking**: Uses Supabase Realtime streams to listen for match events specifically for the current user.
+    -   **Online User Count**: Displays a live count of active users using **Supabase Presence**.
+    -   **UI**: Complex radar sweep animation, pulsing "signal" rings, and glassmorphism stats badge.
+    -   **Logic**: Handles search cancellation and cleanup of database state.
 
 ### 4. Chat Screen (`/chat`)
--   **Status**: 🚧 Partially Implemented
+-   **Status**: 🚧 Basic Implementation
 -   **Features**:
-    -   Basic UI shell.
-    -   *Next Step*: Implement real-time message exchange via Supabase.
+    -   **Realtime Messaging**: Uses Supabase Broadcast channels for ephemeral message exchange.
+    -   **UI**: Message bubbles, timestamping, and "typing" area.
+    -   *Upcoming*: Persistent chat history (optional), Read receipts.
 
-## 🧭 Navigation
-The app uses a `GoRouter` configuration in `main.dart`.
--   **Push**: Used for forward navigation (`Landing` -> `Interests` -> `Matching`) to preserve the stack.
--   **PushReplacement**: Used when a match is found (`Matching` -> `Chat`) so back navigation skips the "Searching" screen.
--   **Pop**: Used for "Back" and "Cancel" actions.
+## 🗄️ Database & Security
+
+### Schema
+The app uses two main tables in Supabase:
+1.  **`public.profiles`**:
+    -   `id` (UUID, references `auth.users`)
+    -   `interests` (Text Array)
+    -   `is_searching` (Boolean)
+2.  **`public.matches`**:
+    -   `id` (UUID, Match Room ID)
+    -   `user_1` (UUID)
+    -   `user_2` (UUID)
+    -   `created_at` (Timestamp)
+
+### Security (RLS)
+-   **Profiles**: Publicly readable (to allow matching), but only updateable by the owning user.
+-   **Matches**: Restricted visibility. Users can only SELECT matches where they are either `user_1` or `user_2`.
 
 ## 🏃‍♂️ Getting Started
 
 ### 1. Prerequisites
-- Flutter SDK
-- Supabase CLI (`npm install -g supabase`)
+-   Flutter SDK
+-   Supabase Account
 
 ### 2. Installation
 ```bash
@@ -104,13 +114,11 @@ SUPABASE_URL=your_project_url
 SUPABASE_ANON_KEY=your_anon_key
 ```
 
-### 4. Database Setup (Supabase)
-Initialize and push the schema to your remote project:
-```bash
-supabase login
-supabase link --project-ref your_project_ref
-supabase db push
-```
+### 4. Supabase Setup
+1.  **Create Project**: Start a new project on Supabase.
+2.  **Enable Anonymous Auth**: Go to `Authentication` > `Providers` > `Anonymous` and toggle it **ON**.
+3.  **Run Migrations**: Run the SQL scripts in `supabase/migrations` to set up tables and functions.
+4.  **Enable Realtime**: Go to `Database` > `Replication` and enable replication for the `matches` table (or `supabase_realtime` publication).
 
 ### 5. Run the App
 ```bash
@@ -119,8 +127,8 @@ flutter run
 
 ## 🔮 Roadmap
 
--   [ ] Integrate Supabase User Management (Anonymous Auth).
--   [ ] Implement Real-time DB triggers for matching logic.
--   [ ] Build full Chat UI with message bubbles and timestamps.
--   [ ] Add "Typing..." indicators and read receipts.
+-   [x] Integrate Supabase User Management (Anonymous Auth).
+-   [x] Implement Real-time DB triggers for matching logic.
+-   [x] Implement Realtime Online User Count (Presence).
+-   [ ] Build full Chat UI with media support.
 -   [ ] Implement End-to-End Encryption (E2EE) for messages.
