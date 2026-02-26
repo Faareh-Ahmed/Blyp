@@ -13,11 +13,12 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with WidgetsBindingObserver {
   final List<Map<String, dynamic>> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  
+
   late RealtimeChannel _channel;
   bool _isConnected = false;
   bool _isPartnerTyping = false;
@@ -35,13 +36,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       if (!_isConnected) {
-         // Attempt to manually reconnect or just wait for auto-reconnect
-         // _channel.subscribe(); // usually auto-reconnects
+        // Attempt to manually reconnect or just wait for auto-reconnect
+        // _channel.subscribe(); // usually auto-reconnects
       }
       // Re-track presence regardless
       final myUserId = Supabase.instance.client.auth.currentUser?.id;
       if (myUserId != null && _isConnected) {
-          _channel.track({'user_id': myUserId, 'status': 'online'});
+        _channel.track({'user_id': myUserId, 'status': 'online'});
       }
     }
   }
@@ -56,7 +57,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
           callback: (payload) {
             if (mounted) {
               final messageUserId = payload['userId'];
-              // Only add if it's from someone else, to avoid duplication 
+              // Only add if it's from someone else, to avoid duplication
               // (though we usually add our own immediately)
               if (messageUserId != myUserId) {
                 setState(() {
@@ -65,7 +66,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     'isMe': false,
                     'timestamp': DateTime.now(),
                   });
-                  _isPartnerTyping = false; // Stop typing indicator on message receive
+                  _isPartnerTyping =
+                      false; // Stop typing indicator on message receive
                 });
                 _scrollToBottom();
               }
@@ -75,41 +77,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
         .onBroadcast(
           event: 'typing',
           callback: (payload) {
-             if (mounted) {
-               final isTyping = payload['isTyping'] as bool;
-               final userId = payload['userId'];
-               if (userId != myUserId) {
-                 setState(() {
-                   _isPartnerTyping = isTyping;
-                 });
-               }
-             }
-          },
-        )
-        .onPresenceLeave((payload) {
-            // If anyone leaves, we assume it's the partner in a 1-on-1 chat
-            // In a more complex app, check payload['user_id'] against partner ID
-            if (mounted && payload.leftPresences.isNotEmpty) {
-               // Check if the leaver is not us
-               final leftUsers = payload.leftPresences.map((p) => p.payload['user_id']).toList();
-               if (!leftUsers.contains(myUserId)) {
-                  // Only mark as left if we explicitly know they left the chat, 
-                  // but for now, let's just show a system message instead of locking the chat
-                  // setState(() {
-                  //   _hasPartnerLeft = true;
-                  // });
-                 setState(() {
-                    _messages.add({
-                      'text': 'Partner disconnected (might be temporary).',
-                      'isMe': false,
-                      'isSystem': true,
-                      'timestamp': DateTime.now(),
-                    });
-                 });
-               }
+            if (mounted) {
+              final isTyping = payload['isTyping'] as bool;
+              final userId = payload['userId'];
+              if (userId != myUserId) {
+                setState(() {
+                  _isPartnerTyping = isTyping;
+                });
+              }
             }
           },
         )
+        .onPresenceLeave((payload) {
+          // If anyone leaves, we assume it's the partner in a 1-on-1 chat
+          // In a more complex app, check payload['user_id'] against partner ID
+          if (mounted && payload.leftPresences.isNotEmpty) {
+            // Check if the leaver is not us
+            final leftUsers = payload.leftPresences
+                .map((p) => p.payload['user_id'])
+                .toList();
+            if (!leftUsers.contains(myUserId)) {
+              // Only mark as left if we explicitly know they left the chat,
+              // but for now, let's just show a system message instead of locking the chat
+              setState(() {
+                _hasPartnerLeft = true;
+                _messages.add({
+                  'text': 'Partner disconnected. You cannot send messages.',
+                  'isMe': false,
+                  'isSystem': true,
+                  'timestamp': DateTime.now(),
+                });
+              });
+            }
+          }
+        })
         .subscribe((status, error) {
           if (status == RealtimeSubscribeStatus.subscribed) {
             if (mounted) {
@@ -169,11 +170,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
 
     // Add to local list immediately
     setState(() {
-      _messages.add({
-        'text': text,
-        'isMe': true,
-        'timestamp': DateTime.now(),
-      });
+      _messages.add({'text': text, 'isMe': true, 'timestamp': DateTime.now()});
     });
     _scrollToBottom();
 
@@ -185,7 +182,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
   }
 
   void _leaveChat() {
-    context.go('/interests');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exit Chat'),
+        content: const Text('Are you sure you want to exit the chat?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              context.go('/interests');
+            },
+            child: const Text('Confirm', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -232,7 +248,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     controller: _scrollController,
                     reverse: true,
                     itemCount: reversedMessages.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     itemBuilder: (context, index) {
                       final message = reversedMessages[index];
                       final isMe = message['isMe'] as bool? ?? false;
@@ -244,7 +263,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                             padding: const EdgeInsets.symmetric(vertical: 10),
                             child: Text(
                               message['text'],
-                              style: const TextStyle(color: Colors.white54, fontStyle: FontStyle.italic),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontStyle: FontStyle.italic,
+                              ),
                             ),
                           ),
                         );
@@ -291,20 +313,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                   ),
           ),
           if (_isPartnerTyping)
-             Padding(
-               padding: const EdgeInsets.only(left: 20, bottom: 8),
-               child: Align(
-                 alignment: Alignment.centerLeft,
-                 child: Text(
-                   'Partner is typing...',
-                   style: GoogleFonts.inter(
-                     color: Colors.white54,
-                     fontSize: 12,
-                     fontStyle: FontStyle.italic,
-                   ),
-                 ),
-               ),
-             ),
+            Padding(
+              padding: const EdgeInsets.only(left: 20, bottom: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Partner is typing...',
+                  style: GoogleFonts.inter(
+                    color: Colors.white54,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ),
           Container(
             padding: const EdgeInsets.all(16),
             color: Theme.of(context).colorScheme.surface,
@@ -316,14 +338,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                     enabled: !_hasPartnerLeft && _isConnected,
                     onChanged: (_) => _onTyping(),
                     decoration: InputDecoration(
-                      hintText: _hasPartnerLeft ? 'Partner left' : 'Type a message...',
-                      hintStyle: const TextStyle(color: Colors.white54),
+                      hintText: _hasPartnerLeft
+                          ? 'Partner Disconnected'
+                          : 'Type a message...',
+                      hintStyle: TextStyle(
+                        color: _hasPartnerLeft
+                            ? Colors.white38
+                            : Colors.white54,
+                      ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(
+                          24,
+                        ), // Changed to 24
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: Theme.of(context).scaffoldBackgroundColor,
+                      fillColor: _hasPartnerLeft
+                          ? Colors.grey.withOpacity(
+                              0.2,
+                            ) // Use a different color for disconnected
+                          : Theme.of(context).scaffoldBackgroundColor,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 10,
@@ -335,12 +369,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObse
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: _hasPartnerLeft || !_isConnected 
-                      ? Colors.grey 
+                  backgroundColor: _hasPartnerLeft || !_isConnected
+                      ? Colors.grey
                       : Theme.of(context).colorScheme.primary,
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: (_hasPartnerLeft || !_isConnected) ? null : _sendMessage,
+                    onPressed: (_hasPartnerLeft || !_isConnected)
+                        ? null
+                        : _sendMessage,
                   ),
                 ),
               ],
