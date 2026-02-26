@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -12,19 +13,41 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> with WidgetsBindingObserver {
   final List<Map<String, dynamic>> _messages = [];
   final TextEditingController _textController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  
   late RealtimeChannel _channel;
   bool _isConnected = false;
+  bool _isPartnerTyping = false;
+  bool _hasPartnerLeft = false;
+  Timer? _typingTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeChat();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!_isConnected) {
+         // Attempt to manually reconnect or just wait for auto-reconnect
+         // _channel.subscribe(); // usually auto-reconnects
+      }
+      // Re-track presence regardless
+      final myUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (myUserId != null && _isConnected) {
+          _channel.track({'user_id': myUserId, 'status': 'online'});
+      }
+    }
+  }
+
   void _initializeChat() {
+    final myUserId = Supabase.instance.client.auth.currentUser?.id;
     _channel = Supabase.instance.client.channel(widget.roomId);
 
     _channel
@@ -32,13 +55,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           event: 'message',
           callback: (payload) {
             if (mounted) {
-              setState(() {
-                _messages.add({
-                  'text': payload['text'],
-                  'isMe': false,
-                  'timestamp': DateTime.now(),
+              final messageUserId = payload['userId'];
+              // Only add if it's from someone else, to avoid duplication 
+              // (though we usually add our own immediately)
+              if (messageUserId != myUserId) {
+                setState(() {
+                  _messages.add({
+                    'text': payload['text'],
+                    'isMe': false,
+                    'timestamp': DateTime.now(),
+                  });
+                  _isPartnerTyping = false; // Stop typing indicator on message receive
                 });
-              });
+                _scrollToBottom();
+              }
+            }
+          },
+        )
+        .onBroadcast(
+          event: 'typing',
+          callback: (payload) {
+             if (mounted) {
+               final isTyping = payload['isTyping'] as bool;
+               final userId = payload['userId'];
+               if (userId != myUserId) {
+                 setState(() {
+                   _isPartnerTyping = isTyping;
+                 });
+               }
+             }
+          },
+        )
+        .onPresenceLeave((payload) {
+            // If anyone leaves, we assume it's the partner in a 1-on-1 chat
+            // In a more complex app, check payload['user_id'] against partner ID
+            if (mounted && payload.leftPresences.isNotEmpty) {
+               // Check if the leaver is not us
+               final leftUsers = payload.leftPresences.map((p) => p.payload['user_id']).toList();
+               if (!leftUsers.contains(myUserId)) {
+                  // Only mark as left if we explicitly know they left the chat, 
+                  // but for now, let's just show a system message instead of locking the chat
+                  // setState(() {
+                  //   _hasPartnerLeft = true;
+                  // });
+                 setState(() {
+                    _messages.add({
+                      'text': 'Partner disconnected (might be temporary).',
+                      'isMe': false,
+                      'isSystem': true,
+                      'timestamp': DateTime.now(),
+                    });
+                 });
+               }
             }
           },
         )
@@ -48,47 +116,84 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               setState(() {
                 _isConnected = true;
               });
+              // Track our presence so the other user knows we are here
+              _channel.track({'user_id': myUserId, 'status': 'online'});
             }
           }
         });
+  }
 
-    // Notify user we are here
-    _channel.track({'status': 'online'});
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0, // Because we are using reverse: true in ListView
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   @override
   void dispose() {
-    // Leave the channel when existing
-    Supabase.instance.client.removeChannel(_channel);
+    WidgetsBinding.instance.removeObserver(this);
+    _channel.unsubscribe();
     _textController.dispose();
+    _scrollController.dispose();
+    _typingTimer?.cancel();
     super.dispose();
+  }
+
+  void _onTyping() {
+    final myUserId = Supabase.instance.client.auth.currentUser?.id;
+    _channel.sendBroadcastMessage(
+      event: 'typing',
+      payload: {'isTyping': true, 'userId': myUserId},
+    );
+
+    // Debounce the stop typing event
+    _typingTimer?.cancel();
+    _typingTimer = Timer(const Duration(milliseconds: 1500), () {
+      _channel.sendBroadcastMessage(
+        event: 'typing',
+        payload: {'isTyping': false, 'userId': myUserId},
+      );
+    });
   }
 
   void _sendMessage() async {
     final text = _textController.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || !_isConnected || _hasPartnerLeft) return;
 
+    final myUserId = Supabase.instance.client.auth.currentUser?.id;
     _textController.clear();
 
-    // Add to local list
+    // Add to local list immediately
     setState(() {
-      _messages.add({'text': text, 'isMe': true, 'timestamp': DateTime.now()});
+      _messages.add({
+        'text': text,
+        'isMe': true,
+        'timestamp': DateTime.now(),
+      });
     });
+    _scrollToBottom();
 
     // Broadcast to others
     await _channel.sendBroadcastMessage(
       event: 'message',
-      payload: {'text': text},
+      payload: {'text': text, 'userId': myUserId},
     );
   }
 
   void _leaveChat() {
-    // Unsubscribe happens in dispose, but we can also trigger explicit leave logic here if needed
     context.go('/interests');
   }
 
   @override
   Widget build(BuildContext context) {
+    // Reverse the messages list for display if not using ListView reverse: true with index logic
+    // But since we strictly append to _messages, let's use reverse: true in ListView
+    final reversedMessages = List.of(_messages).reversed.toList();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -104,8 +209,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (_hasPartnerLeft)
+            Container(
+              width: double.infinity,
+              color: Colors.redAccent.withOpacity(0.1),
+              padding: const EdgeInsets.all(8.0),
+              child: const Text(
+                'Partner has disconnected. You can leave now.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.redAccent),
+              ),
+            ),
           Expanded(
-            child: _messages.isEmpty
+            child: _messages.isEmpty && !_hasPartnerLeft
                 ? Center(
                     child: Text(
                       _isConnected ? 'Say hello!' : 'Connecting...',
@@ -113,14 +229,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   )
                 : ListView.builder(
-                    reverse: true, // Start from bottom
-                    itemCount: _messages.length,
-                    padding: const EdgeInsets.all(16),
+                    controller: _scrollController,
+                    reverse: true,
+                    itemCount: reversedMessages.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     itemBuilder: (context, index) {
-                      // Reverse index for ListView.builder with reverse: true
-                      final messageIndex = _messages.length - 1 - index;
-                      final message = _messages[messageIndex];
-                      final isMe = message['isMe'] as bool;
+                      final message = reversedMessages[index];
+                      final isMe = message['isMe'] as bool? ?? false;
+                      final isSystem = message['isSystem'] as bool? ?? false;
+
+                      if (isSystem) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Text(
+                              message['text'],
+                              style: const TextStyle(color: Colors.white54, fontStyle: FontStyle.italic),
+                            ),
+                          ),
+                        );
+                      }
 
                       return Align(
                         alignment: isMe
@@ -133,7 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             vertical: 10,
                           ),
                           constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.7,
+                            maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
                             color: isMe
@@ -143,11 +271,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               topLeft: const Radius.circular(16),
                               topRight: const Radius.circular(16),
                               bottomLeft: isMe
-                                  ? const Radius.circular(4)
-                                  : const Radius.circular(16),
-                              bottomRight: isMe
                                   ? const Radius.circular(16)
                                   : const Radius.circular(4),
+                              bottomRight: isMe
+                                  ? const Radius.circular(4)
+                                  : const Radius.circular(16),
                             ),
                           ),
                           child: Text(
@@ -162,6 +290,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     },
                   ),
           ),
+          if (_isPartnerTyping)
+             Padding(
+               padding: const EdgeInsets.only(left: 20, bottom: 8),
+               child: Align(
+                 alignment: Alignment.centerLeft,
+                 child: Text(
+                   'Partner is typing...',
+                   style: GoogleFonts.inter(
+                     color: Colors.white54,
+                     fontSize: 12,
+                     fontStyle: FontStyle.italic,
+                   ),
+                 ),
+               ),
+             ),
           Container(
             padding: const EdgeInsets.all(16),
             color: Theme.of(context).colorScheme.surface,
@@ -170,9 +313,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _textController,
+                    enabled: !_hasPartnerLeft && _isConnected,
+                    onChanged: (_) => _onTyping(),
                     decoration: InputDecoration(
-                      hintText: 'Type a message...',
-                      hintStyle: TextStyle(color: Colors.white54),
+                      hintText: _hasPartnerLeft ? 'Partner left' : 'Type a message...',
+                      hintStyle: const TextStyle(color: Colors.white54),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -190,10 +335,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor: _hasPartnerLeft || !_isConnected 
+                      ? Colors.grey 
+                      : Theme.of(context).colorScheme.primary,
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: _sendMessage,
+                    onPressed: (_hasPartnerLeft || !_isConnected) ? null : _sendMessage,
                   ),
                 ),
               ],

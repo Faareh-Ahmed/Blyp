@@ -7,20 +7,38 @@ class MatchRepository {
 
   MatchRepository(this._supabase);
 
+  Future<void> updateInterests(List<String> interests) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    print('Updating interests for user $userId: $interests');
+    await _supabase
+        .from('profiles')
+        .update({'interests': interests})
+        .eq('id', userId);
+  }
+
   Future<MatchResult?> findMatch() async {
     final userId = _supabase.auth.currentUser!.id;
+    print('Find match called for user: $userId');
     try {
       final response = await _supabase.rpc(
         'find_match',
         params: {'user_id': userId},
       );
+      print('Find match response: $response');
 
       if (response != null && (response as List).isNotEmpty) {
         final data = response[0] as Map<String, dynamic>;
+        print('Match found immediately: $data');
         return MatchResult.fromJson(data);
       }
+      print(
+        'No immediate match found, waiting... (Check if interests are set or compatible)',
+      );
       return null;
     } catch (e) {
+      print('Error finding match: $e');
       // If error occurs, rethrow or handle specific errors
       rethrow;
     }
@@ -36,8 +54,11 @@ class MatchRepository {
         .eq('id', userId);
   }
 
-  Stream<MatchResult> subscribeToMatches() {
+  Stream<MatchResult> subscribeToMatches({DateTime? minCreatedAt}) {
     final userId = _supabase.auth.currentUser!.id;
+    print(
+      'Subscribing to matches for user: $userId (minCreatedAt: $minCreatedAt)',
+    );
 
     // Listen for INSERT events on the 'matches' table using postgresChanges
     return _supabase
@@ -47,15 +68,33 @@ class MatchRepository {
         .map((maps) {
           // Stream returns a List<Map<String, dynamic>> of rows
           // We assume RLS allows us to see rows where we are user_1 or user_2
-          if (maps.isEmpty) return null;
+          if (maps.isEmpty) {
+            print('Stream: No matches yet');
+            return null;
+          }
 
           // Client-side filtering to be double sure and safe
           final relevantMatches = maps.where((data) {
-            return data['user_1'] == userId || data['user_2'] == userId;
+            final isUser = data['user_1'] == userId || data['user_2'] == userId;
+            if (!isUser) return false;
+
+            if (minCreatedAt != null) {
+              final createdAtStr = data['created_at'] as String?;
+              if (createdAtStr == null) return false; // Should not happen
+              final createdAt = DateTime.tryParse(createdAtStr);
+              if (createdAt == null || createdAt.isBefore(minCreatedAt)) {
+                return false;
+              }
+            }
+            return true;
           }).toList();
 
-          if (relevantMatches.isEmpty) return null;
+          if (relevantMatches.isEmpty) {
+            print('Stream: No relevant matches found (after filtering)');
+            return null;
+          }
 
+          print('Stream: Found relevant match: ${relevantMatches.first}');
           return relevantMatches.first;
         })
         .where((data) => data != null)
@@ -67,10 +106,11 @@ class MatchRepository {
           final matchedUserId = (user1 == userId) ? user2 : user1;
 
           return MatchResult(
-            roomId:
-                matchData['id']
-                    as String, // Assuming 'id' is the room_id or primary key
+            roomId: matchData['room_id'] as String,
             matchedUserId: matchedUserId,
+            createdAt: matchData['created_at'] != null
+                ? DateTime.parse(matchData['created_at'] as String)
+                : null,
           );
         });
   }

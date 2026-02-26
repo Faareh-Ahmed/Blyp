@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:blyp_app/presentation/matching/match_controller.dart';
 
 class InterestSelectionScreen extends ConsumerStatefulWidget {
   const InterestSelectionScreen({super.key});
@@ -46,9 +47,36 @@ class _InterestSelectionScreenState
     });
   }
 
-  void _findMatch() {
-    // Navigate to Matching Screen
-    context.push('/matching');
+  bool _isLoading = false;
+
+  Future<void> _findMatch() async {
+    if (_selectedInterests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select at least one interest')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final repo = ref.read(matchRepositoryProvider);
+      await repo.updateInterests(_selectedInterests.toList());
+
+      if (mounted) {
+        context.push('/matching');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving interests: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -262,7 +290,7 @@ class _InterestSelectionScreenState
                 ],
               ),
               child: ElevatedButton(
-                onPressed: _findMatch,
+                onPressed: _isLoading ? null : _findMatch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
@@ -271,21 +299,33 @@ class _InterestSelectionScreenState
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
+                  disabledBackgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.5),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Find Match',
-                      style: GoogleFonts.inter(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Find Match',
+                            style: GoogleFonts.inter(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.bolt_rounded),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.bolt_rounded),
-                  ],
-                ),
               ),
             ),
             const SizedBox(height: 16),

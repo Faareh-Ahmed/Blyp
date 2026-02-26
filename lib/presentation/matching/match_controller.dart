@@ -52,23 +52,41 @@ class MatchController extends StateNotifier<AsyncValue<MatchResult?>> {
 
     // 2. Subscribe to real-time updates if no immediate match
     _matchSubscription?.cancel();
-    _matchSubscription = _repository.subscribeToMatches().listen(
-      (matchResult) {
-        if (_isCancelled) return;
-
-        // Guard: If we already have a match (e.g. from a previous event or race condition), ignore.
-        // This prevents duplicate emissions or processing a match after one was already found.
-        if (state.value != null) return;
-
-        state = AsyncValue.data(matchResult);
-        _matchSubscription?.cancel(); // Stop listening after match
-      },
-      onError: (error, stack) {
-        if (!_isCancelled) {
-          state = AsyncValue.error(error, stack);
-        }
-      },
+    // Use a more generous lookback period (e.g. 1 minute) or rely on other mechanisms
+    // Relying on client vs server time is risky. Let's use 60 seconds to be safe against clock skew.
+    // Ideally we should use server time, but for now a generous buffer helps.
+    final searchStartTime = DateTime.now().subtract(
+      const Duration(seconds: 60),
     );
+
+    _matchSubscription = _repository
+        .subscribeToMatches(minCreatedAt: searchStartTime)
+        .listen(
+          (matchResult) {
+            if (_isCancelled) return;
+
+            // Guard: If we already have a match (e.g. from a previous event or race condition), ignore.
+            // This prevents duplicate emissions or processing a match after one was already found.
+            if (state.value != null) {
+              print(
+                'MatchController: Already matched, ignoring new stream event on ${matchResult.roomId}',
+              );
+              return;
+            }
+
+            print(
+              'MatchController: Match found via stream: ${matchResult.roomId}',
+            );
+            state = AsyncValue.data(matchResult);
+            _matchSubscription?.cancel(); // Stop listening after match
+          },
+          onError: (error, stack) {
+            print('MatchController: Stream error: $error');
+            if (!_isCancelled) {
+              state = AsyncValue.error(error, stack);
+            }
+          },
+        );
   }
 
   Future<void> cancelSearch() async {

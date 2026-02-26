@@ -42,15 +42,17 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
   }
 
   void _onStateChanged(AppLifecycleState state) {
-    // If the app is hidden (backgrounded) or inactive, we might want to cancel search
-    // to avoid phantom matches or battery usage.
-    if (state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.inactive) {
-      ref.read(matchControllerProvider.notifier).cancelSearch();
-      if (mounted) {
-        context.pop(); // Exit screen
-      }
-    }
+    // Only cancel if the app is truly hidden/paused for a significant time?
+    // For now, let's disable this auto-cancel behavior because it interferes with
+    // desktop/web testing and multitasking.
+
+    // if (state == AppLifecycleState.hidden ||
+    //     state == AppLifecycleState.inactive) {
+    //   ref.read(matchControllerProvider.notifier).cancelSearch();
+    //   if (mounted) {
+    //     context.pop(); // Exit screen
+    //   }
+    // }
   }
 
   @override
@@ -501,20 +503,27 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
       previous,
       next,
     ) {
+      print('MatchingScreen: State update: $next');
       next.when(
         data: (matchResult) {
           if (matchResult != null) {
-            context.pushReplacement('/chat', extra: matchResult.roomId);
+            print(
+              'MatchingScreen: Match confirmed! Navigating to chat room: ${matchResult.roomId}',
+            );
+            if (mounted) {
+              context.pushReplacement('/chat', extra: matchResult.roomId);
+            }
           }
         },
         error: (error, stack) {
+          print('MatchingScreen: Error: $error');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error finding match: $error')),
           );
-          // Optional: Retry logic or pop?
-          // For now, let's just show error. User can cancel.
         },
-        loading: () {},
+        loading: () {
+          print('MatchingScreen: Loading...');
+        },
       );
     });
   }
