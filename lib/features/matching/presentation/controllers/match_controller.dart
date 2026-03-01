@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:blyp_app/data/repositories/match_repository.dart';
-import 'package:blyp_app/domain/models/match_result.dart';
+import 'package:blyp_app/features/matching/data/repositories/match_repository.dart';
+import 'package:blyp_app/features/matching/domain/models/match_result.dart';
 
 final matchRepositoryProvider = Provider.autoDispose<MatchRepository>((ref) {
   return MatchRepository(Supabase.instance.client);

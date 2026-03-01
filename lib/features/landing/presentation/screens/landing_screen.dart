@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LandingScreen extends ConsumerStatefulWidget {
   const LandingScreen({super.key});
@@ -12,47 +11,7 @@ class LandingScreen extends ConsumerStatefulWidget {
 }
 
 class _LandingScreenState extends ConsumerState<LandingScreen> {
-  bool _isLoading = false;
-
-  Future<void> _handleEnter() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final session = Supabase.instance.client.auth.currentSession;
-      if (session == null) {
-        await Supabase.instance.client.auth.signInAnonymously();
-      }
-
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        // Create a profile for the user if it doesn't exist
-        // We use upsert to be safe, though insert is fine for new users
-        await Supabase.instance.client.from('profiles').upsert({
-          'id': user.id,
-          'is_searching': false,
-          // default values
-        });
-      }
-
-      if (mounted) {
-        context.push('/interests');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
+  final bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +180,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                                   ],
                                 ),
                                 child: ElevatedButton(
-                                  onPressed: _handleEnter,
+                                  onPressed: () => context.push('/username'),
                                   style: ElevatedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(
                                       vertical: 20,
@@ -243,7 +202,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                             const SizedBox(height: 16),
                             TextButton(
                               onPressed: () {
-                                // TODO: Show How it Works
+                                context.push('/how-it-works');
                               },
                               style: TextButton.styleFrom(
                                 foregroundColor: const Color(0xFFCBD5E1),

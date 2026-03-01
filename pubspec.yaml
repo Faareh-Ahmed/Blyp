@@ -39,6 +39,7 @@ dependencies:
   flutter_riverpod: ^2.4.9
   go_router: ^13.0.0
   flutter_dotenv: ^6.0.0
+  emoji_picker_flutter: ^4.4.0
 
 dev_dependencies:
   flutter_test:

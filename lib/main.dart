@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:blyp_app/core/theme/app_theme.dart';
-import 'package:blyp_app/presentation/responsive_wrapper.dart';
-import 'package:blyp_app/presentation/landing/landing_screen.dart';
-import 'package:blyp_app/presentation/interests/interest_selection_screen.dart';
-import 'package:blyp_app/presentation/matching/matching_screen.dart';
-import 'package:blyp_app/presentation/chat/chat_screen.dart';
+import 'package:blyp_app/core/widgets/responsive_wrapper.dart';
+import 'package:blyp_app/features/landing/presentation/screens/landing_screen.dart';
+import 'package:blyp_app/features/interests/presentation/screens/interest_selection_screen.dart';
+import 'package:blyp_app/features/matching/presentation/screens/matching_screen.dart';
+import 'package:blyp_app/features/matching/domain/models/match_result.dart';
+import 'package:blyp_app/features/chat/presentation/screens/chat_screen.dart';
+import 'package:blyp_app/features/landing/presentation/screens/username_screen.dart';
+import 'package:blyp_app/features/landing/presentation/screens/how_it_works_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -27,6 +30,14 @@ final _router = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
     GoRoute(
+      path: '/username',
+      builder: (context, state) => const UsernameScreen(),
+    ),
+    GoRoute(
+      path: '/how-it-works',
+      builder: (context, state) => const HowItWorksScreen(),
+    ),
+    GoRoute(
       path: '/interests',
       builder: (context, state) => const InterestSelectionScreen(),
     ),
@@ -37,8 +48,11 @@ final _router = GoRouter(
     GoRoute(
       path: '/chat',
       builder: (context, state) {
-        final roomId = state.extra as String? ?? 'default_room';
-        return ChatScreen(roomId: roomId);
+        final matchResult = state.extra as MatchResult;
+        return ChatScreen(
+          roomId: matchResult.roomId,
+          partnerId: matchResult.matchedUserId,
+        );
       },
     ),
   ],

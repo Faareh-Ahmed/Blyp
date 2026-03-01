@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:blyp_app/presentation/matching/match_controller.dart';
-import 'package:blyp_app/domain/models/match_result.dart';
+import 'package:blyp_app/features/matching/presentation/controllers/match_controller.dart';
+import 'package:blyp_app/features/matching/domain/models/match_result.dart';
 
 class MatchingScreen extends ConsumerStatefulWidget {
   const MatchingScreen({super.key});
@@ -511,7 +511,7 @@ class _MatchingScreenState extends ConsumerState<MatchingScreen>
               'MatchingScreen: Match confirmed! Navigating to chat room: ${matchResult.roomId}',
             );
             if (mounted) {
-              context.pushReplacement('/chat', extra: matchResult.roomId);
+              context.pushReplacement('/chat', extra: matchResult);
             }
           }
         },

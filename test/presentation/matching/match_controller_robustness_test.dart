@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:blyp_app/presentation/matching/match_controller.dart';
-import 'package:blyp_app/data/repositories/match_repository.dart';
-import 'package:blyp_app/domain/models/match_result.dart';
+import 'package:blyp_app/features/matching/presentation/controllers/match_controller.dart';
+import 'package:blyp_app/features/matching/data/repositories/match_repository.dart';
+import 'package:blyp_app/features/matching/domain/models/match_result.dart';
 
 class MockMatchRepository extends Mock implements MatchRepository {}
 

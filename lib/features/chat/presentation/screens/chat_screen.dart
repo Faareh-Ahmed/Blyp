@@ -4,10 +4,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart' as emoji;
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String roomId;
-  const ChatScreen({super.key, required this.roomId});
+  final String partnerId;
+  const ChatScreen({super.key, required this.roomId, required this.partnerId});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -24,12 +26,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _isPartnerTyping = false;
   bool _hasPartnerLeft = false;
   Timer? _typingTimer;
+  String? _partnerUsername;
+
+  bool _showEmojiPicker = false;
+  final FocusNode _focusNode = FocusNode();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        setState(() {
+          _showEmojiPicker = false;
+        });
+      }
+    });
+
     _initializeChat();
+    _fetchPartnerProfile();
+  }
+
+  Future<void> _fetchPartnerProfile() async {
+    try {
+      final response = await Supabase.instance.client
+          .from('profiles')
+          .select('username')
+          .eq('id', widget.partnerId)
+          .single();
+      if (mounted) {
+        setState(() {
+          _partnerUsername = response['username'] as String?;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching partner profile: $e');
+    }
   }
 
   @override
@@ -140,6 +173,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _channel.unsubscribe();
     _textController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     _typingTimer?.cancel();
     super.dispose();
   }
@@ -212,8 +246,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        centerTitle: false,
         title: Text(
-          'Chat Room',
+          _partnerUsername ?? '',
           style: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -223,10 +259,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
-      body: Column(
-        children: [
-          if (_hasPartnerLeft)
-            Container(
+      body: PopScope(
+        canPop: !_showEmojiPicker,
+        onPopInvokedWithResult: (didPop, result) {
+          if (didPop) return;
+          if (_showEmojiPicker) {
+            setState(() {
+              _showEmojiPicker = false;
+            });
+          }
+        },
+        child: SafeArea(
+          child: Column(
+            children: [
+              if (_hasPartnerLeft)
+                Container(
               width: double.infinity,
               color: Colors.redAccent.withOpacity(0.1),
               padding: const EdgeInsets.all(8.0),
@@ -335,6 +382,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 Expanded(
                   child: TextField(
                     controller: _textController,
+                    focusNode: _focusNode,
                     enabled: !_hasPartnerLeft && _isConnected,
                     onChanged: (_) => _onTyping(),
                     decoration: InputDecoration(
@@ -345,6 +393,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         color: _hasPartnerLeft
                             ? Colors.white38
                             : Colors.white54,
+                      ),
+                      prefixIcon: IconButton(
+                        icon: Icon(
+                          _showEmojiPicker ? Icons.keyboard : Icons.emoji_emotions_outlined,
+                          color: _hasPartnerLeft ? Colors.white38 : Colors.white54,
+                        ),
+                        onPressed: () {
+                          if (_hasPartnerLeft || !_isConnected) return;
+                          setState(() {
+                            _showEmojiPicker = !_showEmojiPicker;
+                            if (_showEmojiPicker) {
+                              _focusNode.unfocus();
+                            } else {
+                              _focusNode.requestFocus();
+                            }
+                          });
+                        },
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(
@@ -382,7 +447,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ],
             ),
           ),
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 250,
+              child: emoji.EmojiPicker(
+                textEditingController: _textController,
+                onEmojiSelected: (category, emp) {
+                  _onTyping();
+                },
+                config: emoji.Config(
+                  emojiViewConfig: emoji.EmojiViewConfig(
+                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  ),
+                  categoryViewConfig: emoji.CategoryViewConfig(
+                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    iconColorSelected: Theme.of(context).colorScheme.primary,
+                    indicatorColor: Theme.of(context).colorScheme.primary,
+                  ),
+                  bottomActionBarConfig: emoji.BottomActionBarConfig(
+                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    buttonColor: Theme.of(context).colorScheme.primary,
+                    buttonIconColor: Colors.white,
+                  ),
+                ),
+              ),
+            ),
         ],
+      ),
+        ),
       ),
     );
   }

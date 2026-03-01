@@ -1,5 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:blyp_app/domain/models/match_result.dart';
+import 'package:blyp_app/features/matching/domain/models/match_result.dart';
 import 'dart:async';
 
 class MatchRepository {

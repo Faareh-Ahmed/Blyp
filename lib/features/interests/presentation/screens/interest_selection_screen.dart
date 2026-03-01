@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:blyp_app/presentation/matching/match_controller.dart';
+import 'package:blyp_app/features/matching/presentation/controllers/match_controller.dart';
+import 'package:blyp_app/features/interests/presentation/controllers/tags_controller.dart';
 
 class InterestSelectionScreen extends ConsumerStatefulWidget {
   const InterestSelectionScreen({super.key});
@@ -14,28 +15,15 @@ class InterestSelectionScreen extends ConsumerStatefulWidget {
 
 class _InterestSelectionScreenState
     extends ConsumerState<InterestSelectionScreen> {
-  final List<String> _interests = [
-    'Gaming',
-    'Tech',
-    'Music',
-    'Movies',
-    'Art',
-    'Sports',
-    'Travel',
-    'Foodie',
-    'Coding',
-    'Photography',
-    'Nature',
-    'Fitness',
-    'Space',
-    'History',
-    'Fashion',
-  ];
+  final Set<String> _selectedInterests = {};
 
-  final Set<String> _selectedInterests = {
-    'Gaming',
-    'Tech',
-  }; // Pre-selected for demo display
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _toggleInterest(String interest) {
     setState(() {
@@ -104,37 +92,14 @@ class _InterestSelectionScreenState
                         child: IconButton(
                           icon: const Icon(Icons.chevron_left_rounded),
                           color: Colors.white70,
-                          onPressed: () => context.pop(),
+                          onPressed: () {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.go('/');
+                            }
+                          },
                         ),
-                      ),
-                      Row(
-                        children: [
-                          // Placeholder for logo image
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.asset(
-                                'assets/logo/logobg.png',
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Blyp',
-                            style: GoogleFonts.inter(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                        ],
                       ),
                       const SizedBox(width: 40), // Balance the back button
                     ],
@@ -171,8 +136,20 @@ class _InterestSelectionScreenState
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    ref.read(searchTagsQueryProvider.notifier).state = value;
+                  },
+                  onSubmitted: (value) {
+                    final trimmed = value.trim().toLowerCase();
+                    if (trimmed.isNotEmpty) {
+                      _toggleInterest(trimmed);
+                      _searchController.clear();
+                      ref.read(searchTagsQueryProvider.notifier).state = '';
+                    }
+                  },
                   decoration: InputDecoration(
-                    hintText: 'Search tags...',
+                    hintText: 'Search or add tags...',
                     hintStyle: GoogleFonts.inter(
                       color: Colors.white24,
                       fontSize: 14,
@@ -194,75 +171,126 @@ class _InterestSelectionScreenState
             // Interest Grid
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(
-                  24,
-                  0,
-                  24,
-                  120,
-                ), // Bottom padding for FAB
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: _interests.map((interest) {
-                    final isSelected = _selectedInterests.contains(interest);
-                    return GestureDetector(
-                      onTap: () => _toggleInterest(interest),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(
-                                  context,
-                                ).colorScheme.secondary.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(
-                            color: isSelected
-                                ? Colors.transparent
-                                : Theme.of(context).colorScheme.secondary
-                                      .withValues(alpha: 0.3),
-                            width: 2,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: Theme.of(context).colorScheme.primary
-                                        .withValues(alpha: 0.2),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              interest,
-                              style: GoogleFonts.inter(
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.secondary,
-                              ),
-                            ),
-                            if (isSelected) ...[
-                              const SizedBox(width: 8),
-                              const Icon(
-                                Icons.check_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ],
-                          ],
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final tagsAsync = ref.watch(searchedTagsProvider);
+
+                    return tagsAsync.when(
+                      loading: () => const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24.0),
+                          child: CircularProgressIndicator(),
                         ),
                       ),
+                      error: (err, stack) => Center(
+                        child: Text(
+                          'Could not load tags',
+                          style: TextStyle(color: Colors.red[300]),
+                        ),
+                      ),
+                      data: (tags) {
+                        // Include selected interests so they don't disappear if they rotate out of top X tags
+                        final combinedTags = {
+                          ..._selectedInterests,
+                          ...tags,
+                        }.toList();
+
+                        if (combinedTags.isEmpty &&
+                            ref.read(searchTagsQueryProvider).isEmpty) {
+                          return Center(
+                            child: Text(
+                              'Type to add your first tag!',
+                              style: GoogleFonts.inter(color: Colors.white54),
+                            ),
+                          );
+                        }
+
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: combinedTags.map((interest) {
+                            final isSelected = _selectedInterests.contains(
+                              interest,
+                            );
+                            return GestureDetector(
+                              onTap: () {
+                                _toggleInterest(interest);
+                                if (_searchController.text.isNotEmpty) {
+                                  _searchController.clear();
+                                  ref
+                                          .read(
+                                            searchTagsQueryProvider.notifier,
+                                          )
+                                          .state =
+                                      '';
+                                }
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.secondary
+                                            .withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: isSelected
+                                        ? Colors.transparent
+                                        : Theme.of(context)
+                                              .colorScheme
+                                              .secondary
+                                              .withValues(alpha: 0.3),
+                                    width: 2,
+                                  ),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                                .withValues(alpha: 0.2),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ]
+                                      : [],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      interest,
+                                      style: GoogleFonts.inter(
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : Theme.of(
+                                                context,
+                                              ).colorScheme.secondary,
+                                      ),
+                                    ),
+                                    if (isSelected) ...[
+                                      const SizedBox(width: 8),
+                                      const Icon(
+                                        Icons.check_rounded,
+                                        size: 16,
+                                        color: Colors.white,
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
                     );
-                  }).toList(),
+                  },
                 ),
               ),
             ),
