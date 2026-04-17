@@ -270,10 +270,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           }
         },
         child: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              if (_hasPartnerLeft)
-                Container(
+              Column(
+                children: [
+                  if (_hasPartnerLeft)
+                    Container(
               width: double.infinity,
               color: Colors.redAccent.withValues(alpha: 0.1),
               padding: const EdgeInsets.all(8.0),
@@ -474,6 +476,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ),
         ],
       ),
+      // Animated banner for connection status
+      AnimatedPositioned(
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+        top: _isConnected ? 0 : -80,
+        left: 0,
+        right: 0,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          color: Colors.green.withValues(alpha: 0.15),
+          child: Center(
+            child: Text(
+              'Securely Connected',
+              style: GoogleFonts.inter(
+                color: Colors.green[400],
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ),
+      ),
+      ],
+    ),
         ),
       ),
     );

@@ -303,21 +303,26 @@ class _InterestSelectionScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: double.infinity,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 4),
+            IgnorePointer(
+              ignoring: _selectedInterests.isEmpty,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: _selectedInterests.isNotEmpty ? 1.0 : 0.0,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-              child: ElevatedButton(
+                  child: ElevatedButton(
                 onPressed: _isLoading ? null : _findMatch,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
@@ -354,6 +359,8 @@ class _InterestSelectionScreenState
                           const Icon(Icons.bolt_rounded),
                         ],
                       ),
+              ),
+            ),
               ),
             ),
             const SizedBox(height: 16),

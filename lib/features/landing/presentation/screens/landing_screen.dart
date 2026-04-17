@@ -1,4 +1,3 @@
-import 'package:blyp_app/features/landing/presentation/widgets/animations_showcase.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:go_router/go_router.dart';
@@ -13,6 +12,15 @@ class LandingScreen extends ConsumerStatefulWidget {
 
 class _LandingScreenState extends ConsumerState<LandingScreen> {
   final bool _isLoading = false;
+  bool _isHighlighted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) setState(() => _isHighlighted = true);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +87,6 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                         // Header (Status Bar Placeholder if needed, but SafeArea handles standard status bar)
                         // We can add a top spacer if we want to push content down slightly like the design
                         const SizedBox(height: 20),
-                        const AnimationsShowcase(),
 
                         // Main Content
                         Column(
@@ -103,9 +110,12 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(20.0),
-                                child: Image.asset(
-                                  'assets/logo/logobg.png',
-                                  fit: BoxFit.contain,
+                                child: Hero(
+                                  tag: 'app-logo',
+                                  child: Image.asset(
+                                    'assets/logo/logobg.png',
+                                    fit: BoxFit.contain,
+                                  ),
                                 ),
                               ),
                             ),
@@ -122,15 +132,21 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                                   ),
                             ),
                             const SizedBox(height: 16),
-                            Text(
-                              'Connect, Chat, Vanish',
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFCBD5E1), // slate-300
-                                    letterSpacing: 0.5,
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 1200),
+                              curve: Curves.easeInOut,
+                              style: Theme.of(context).textTheme.bodyLarge!
+                                  .copyWith(
+                                    fontSize: _isHighlighted ? 22 : 18,
+                                    fontWeight: _isHighlighted 
+                                        ? FontWeight.w700 
+                                        : FontWeight.w600,
+                                    color: _isHighlighted 
+                                        ? const Color(0xFFE2E8F0) // lighter slate
+                                        : const Color(0xFF64748B), // darker slate
+                                    letterSpacing: _isHighlighted ? 1.0 : 0.5,
                                   ),
+                              child: const Text('Connect, Chat, Vanish'),
                             ),
                             const SizedBox(height: 48),
 

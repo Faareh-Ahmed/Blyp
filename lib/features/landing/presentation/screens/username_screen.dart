@@ -104,15 +104,18 @@ class _UsernameScreenState extends State<UsernameScreen> {
                       children: [
                         const SizedBox(height: 20),
                         // Logo Section
-                        Image.asset(
-                          'assets/logo/logobg.png', // Assuming this is correct
-                          width: 96,
-                          height: 96,
-                          fit: BoxFit.contain,
-                          errorBuilder: (context, error, stackTrace) {
-                            // Fallback icon if logo not found
-                            return const Icon(Icons.person_outline, size: 48, color: Colors.blue);
-                          },
+                        Hero(
+                          tag: 'app-logo',
+                          child: Image.asset(
+                            'assets/logo/logobg.png', // Assuming this is correct
+                            width: 96,
+                            height: 96,
+                            fit: BoxFit.contain,
+                            errorBuilder: (context, error, stackTrace) {
+                              // Fallback icon if logo not found
+                              return const Icon(Icons.person_outline, size: 48, color: Colors.blue);
+                            },
+                          ),
                         ),
                         const SizedBox(height: 40),
 

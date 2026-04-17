@@ -24,44 +24,50 @@ This script is designed to guide a presenter through recording a 5-minute video 
 ### 1. SlideTransition & 2. FadeTransition (Used in Page Routing)
 **[Screen Recording: Transition from Landing to Interest Selection (`/interests`)]**
 **Speaker:** 
-"First, notice the transition as I navigate from the main landing screen to our Interest Selection screen. Under the hood in `main.dart`, we are using a custom `PageRouteBuilder` coupled with a **`FadeTransition`** and a **`SlideTransition`**. 
+"First, notice the transition as I navigate from the main landing screen. Under the hood in `main.dart`, we are using a custom `PageRouteBuilder` coupled with a **`FadeTransition`** and a **`SlideTransition`**. 
 - **Where:** App-wide navigation routes.
-- **Why it's used:** It replaces the jarring default snap routing, replacing it with a fluid upward slide and fade that feels premium and connected.
+- **Why it's used:** Replaces the jarring default snap routing with a fluid upward slide and fade that feels premium and connected.
 - **Widgets:** `FadeTransition`, `SlideTransition`."
 
-### 3. AnimatedContainer
-**[Screen Recording: Tap on an Interest Chip on the `/interests` screen]**
+### 3. AnimatedDefaultTextStyle
+**[Screen Recording: Show the Landing Screen text "Connect, Chat, Vanish" that fades color/size]**
 **Speaker:** 
-"Next, look at the interest chips. When I tap to select a topic like 'Gaming' or 'Music', the chip smoothly changes its background color and lightly scales its bounds.
-- **Where:** Interest selection grid.
-- **Why it's used:** Providing instantaneous, non-distracting visual feedback when the user interacts with actionable elements. 
-- **Widget:** **`AnimatedContainer`**."
+"To add subtle attention to our core catchphrase on the landing screen without distracting the user, the text highlights itself shortly after loading. 
+- **Where:** Landing screen title subtitle.
+- **Why it's used:** Provides a clean way to animate typography properties (weight, size, color) into focus smoothly.
+- **Widget:** **`AnimatedDefaultTextStyle`**."
 
-### 4. RotationTransition 
-**[Screen Recording: Proceed to the Matching Screen (`/matching`)]**
+### 4. Hero Animation
+**[Screen Recording: Transition from Landing to Username and Interest Screen]**
 **Speaker:** 
-"Once we start looking for a match, we arrive at the Matching screen. Notice the radar sweep graphic spinning in the center.
-- **Where:** The center of the matching/radar UI.
-- **Why it's used:** Since matchmaking relies on database streams (Supabase Realtime) and takes an unpredictable amount of time, this continuous looping animation assures the user that the app is actively working and has not frozen. 
-- **Widget:** **`RotationTransition`** controlled by an `AnimationController`."
-
-### 5. AnimatedPositioned 
-**[Screen Recording: Open the Animations Showcase area in the Landing View]**
-**Speaker:** 
-"If we look at our showcase elements on the landing view, you'll see floating orbs moving across the screen continuously.
-- **Where:** Ambient background elements on the landing screen.
-- **Why it's used:** To create a dynamic, floating depth effect without expensive rendering. 
-- **Widget:** **`AnimatedPositioned`** moves child elements relative to their parent stack effortlessly whenever bounds change."
-
-### 6. Hero Animation
-**[Screen Recording: Tap on an avatar/image that transitions to a detailed view]**
-**Speaker:** 
-"Our final highlighted animation links two screens together. When I tap the user identifier / animation hero tag icon, the icon literally acts perfectly in sync with the page change, flying to its new position on the next screen.
-- **Where:** Between the landing showcase and the matched detail card.
-- **Why it's used:** It maintains spatial continuity, so the user visually tracks an element across a route shift without feeling lost.
+"Notice the Blyp glowing logo. When navigating through the initial setup screens, the logo perfectly traverses the screen space into its new bounding box on the destination screen.
+- **Where:** Between all initial setup and sign-in screens.
+- **Why it's used:** Maintains spatial continuity so the user visually tracks the core brand element across route shifts without feeling lost.
 - **Widget:** **`Hero`**."
 
-*(Note for the presenter: You can also briefly mention `AnimatedOpacity` and `ScaleTransition` which are also present in the codebase's `animations_showcase.dart` if you run short on time).*
+### 5. AnimatedContainer & AnimatedOpacity
+**[Screen Recording: Tap on an Interest Chip, then the floating action button appears (`/interests`)]**
+**Speaker:** 
+"On the interest selection screen, when I tap to select topics, the chips smoothly shift layout and color. Subsequently, the 'Find Match' button dynamically fades into view only when a selection is made.
+- **Where:** Interest selection grid chips & floating 'Find Match' button.
+- **Why it's used:** `AnimatedContainer` provides instant visual feedback for the user's topic selection. `AnimatedOpacity` prevents the user from clicking the empty state by fading the actionable button in selectively.
+- **Widgets:** **`AnimatedContainer`** and **`AnimatedOpacity`**."
+
+### 6. RotationTransition 
+**[Screen Recording: Proceed to the Matching Screen (`/matching`)]**
+**Speaker:** 
+"Once looking for a match, we arrive at the Matching screen. Notice the radar sweep graphic spinning.
+- **Where:** The center of the matching radar UI.
+- **Why it's used:** Matchmaking relies on database streams and takes an unpredictable amount of time. This continuous looping animation reassures the user that the app is actively working.
+- **Widget:** **`RotationTransition`** controlled by an AnimationController."
+
+### 7. AnimatedPositioned 
+**[Screen Recording: Transition from Matching into Chat Screen (`/chat`)]**
+**Speaker:** 
+"Finally, as soon as a match is established and you enter the chat, an indicator slides smoothly down from the top confirming a secure connection.
+- **Where:** The top connection banner inside the Chat view.
+- **Why it's used:** To slide a temporary or contextual notification elegantly down from off-screen relative to its Stack without complex Tween setups. 
+- **Widget:** **`AnimatedPositioned`**."
 
 ---
 
