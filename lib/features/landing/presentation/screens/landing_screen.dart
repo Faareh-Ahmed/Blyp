@@ -1,3 +1,4 @@
+import 'package:blyp_app/features/landing/presentation/widgets/animations_showcase.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui' as ui;
 import 'package:go_router/go_router.dart';
@@ -78,6 +79,7 @@ class _LandingScreenState extends ConsumerState<LandingScreen> {
                         // Header (Status Bar Placeholder if needed, but SafeArea handles standard status bar)
                         // We can add a top spacer if we want to push content down slightly like the design
                         const SizedBox(height: 20),
+                        const AnimationsShowcase(),
 
                         // Main Content
                         Column(

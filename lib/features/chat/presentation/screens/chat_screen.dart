@@ -275,7 +275,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               if (_hasPartnerLeft)
                 Container(
               width: double.infinity,
-              color: Colors.redAccent.withOpacity(0.1),
+              color: Colors.redAccent.withValues(alpha: 0.1),
               padding: const EdgeInsets.all(8.0),
               child: const Text(
                 'Partner has disconnected. You can leave now.',
@@ -419,7 +419,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       ),
                       filled: true,
                       fillColor: _hasPartnerLeft
-                          ? Colors.grey.withOpacity(
+                          ? Colors.grey.withValues(alpha: 
                               0.2,
                             ) // Use a different color for disconnected
                           : Theme.of(context).scaffoldBackgroundColor,

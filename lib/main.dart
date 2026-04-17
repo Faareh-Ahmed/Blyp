@@ -31,7 +31,24 @@ final _router = GoRouter(
     GoRoute(path: '/', builder: (context, state) => const LandingScreen()),
     GoRoute(
       path: '/username',
-      builder: (context, state) => const UsernameScreen(),
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: const UsernameScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: animation.drive(
+                Tween(
+                  begin: const Offset(1.0, 0.0),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutCubic)),
+              ),
+              child: child,
+            ),
+          );
+        },
+      ),
     ),
     GoRoute(
       path: '/how-it-works',
