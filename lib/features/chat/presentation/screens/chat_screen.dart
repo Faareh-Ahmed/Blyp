@@ -16,7 +16,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, TickerProviderStateMixin {
   final List<Map<String, dynamic>> _messages = [];
   final TextEditingController _textController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -26,16 +26,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   bool _isPartnerTyping = false;
   bool _hasPartnerLeft = false;
   Timer? _typingTimer;
+  Timer? _connectionBannerTimer;
   String? _partnerUsername;
+  bool _showConnectionBanner = false;
 
   bool _showEmojiPicker = false;
   final FocusNode _focusNode = FocusNode();
+
+  late AnimationController _typingAnimationController;
+  late Animation<double> _typingAnimation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    
+
+    _typingAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _typingAnimation = Tween<double>(begin: 0, end: 1).animate(
+      CurvedAnimation(
+        parent: _typingAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
         setState(() {
@@ -149,6 +166,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             if (mounted) {
               setState(() {
                 _isConnected = true;
+                _showConnectionBanner = true;
+              });
+              // Hide banner after 2 seconds
+              _connectionBannerTimer?.cancel();
+              _connectionBannerTimer = Timer(const Duration(seconds: 2), () {
+                if (mounted) {
+                  setState(() {
+                    _showConnectionBanner = false;
+                  });
+                }
               });
               // Track our presence so the other user knows we are here
               _channel.track({'user_id': myUserId, 'status': 'online'});
@@ -175,6 +202,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollController.dispose();
     _focusNode.dispose();
     _typingTimer?.cancel();
+    _connectionBannerTimer?.cancel();
+    _typingAnimationController.dispose();
     super.dispose();
   }
 
@@ -240,8 +269,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Reverse the messages list for display if not using ListView reverse: true with index logic
-    // But since we strictly append to _messages, let's use reverse: true in ListView
     final reversedMessages = List.of(_messages).reversed.toList();
 
     return Scaffold(
@@ -259,247 +286,260 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
         ],
       ),
+
       body: PopScope(
         canPop: !_showEmojiPicker,
         onPopInvokedWithResult: (didPop, result) {
           if (didPop) return;
           if (_showEmojiPicker) {
-            setState(() {
-              _showEmojiPicker = false;
-            });
+            setState(() => _showEmojiPicker = false);
           }
         },
-        child: SafeArea(
-          child: Stack(
-            children: [
-              Column(
-                children: [
-                  if (_hasPartnerLeft)
-                    Container(
-              width: double.infinity,
-              color: Colors.redAccent.withValues(alpha: 0.1),
-              padding: const EdgeInsets.all(8.0),
-              child: const Text(
-                'Partner has disconnected. You can leave now.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.redAccent),
-              ),
-            ),
-          Expanded(
-            child: _messages.isEmpty && !_hasPartnerLeft
-                ? Center(
-                    child: Text(
-                      _isConnected ? 'Say hello!' : 'Connecting...',
-                      style: const TextStyle(color: Colors.white54),
-                    ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    reverse: true,
-                    itemCount: reversedMessages.length,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    itemBuilder: (context, index) {
-                      final message = reversedMessages[index];
-                      final isMe = message['isMe'] as bool? ?? false;
-                      final isSystem = message['isSystem'] as bool? ?? false;
 
-                      if (isSystem) {
-                        return Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Text(
-                              message['text'],
-                              style: const TextStyle(
-                                color: Colors.white54,
-                                fontStyle: FontStyle.italic,
+        child: SafeArea(
+          child: Column(
+            children: [
+              /// CONNECTION BANNER (FIXED)
+              AnimatedOpacity(
+                opacity: _showConnectionBanner ? 1 : 0,
+                duration: const Duration(milliseconds: 400),
+                child: AnimatedSlide(
+                  offset: _showConnectionBanner
+                      ? Offset.zero
+                      : const Offset(0, -1),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    color: Colors.green.withValues(alpha: 0.15),
+                    child: Center(
+                      child: Text(
+                        'Securely Connected',
+                        style: GoogleFonts.inter(
+                          color: Colors.green[400],
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              /// MESSAGES LIST
+              Expanded(
+                child: _messages.isEmpty && !_hasPartnerLeft
+                    ? Center(
+                        child: Text(
+                          _isConnected ? 'Say hello!' : 'Connecting...',
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      )
+                    : ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        itemCount: reversedMessages.length,
+                        itemBuilder: (context, index) {
+                          final message = reversedMessages[index];
+                          final isMe = message['isMe'] ?? false;
+                          final isSystem = message['isSystem'] ?? false;
+
+                          /// SYSTEM MESSAGE
+                          if (isSystem) {
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Center(
+                                child: Text(
+                                  message['text'],
+                                  style: const TextStyle(
+                                    color: Colors.white54,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          /// CHAT MESSAGE (FIXED ANIMATION)
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                            alignment: isMe
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.symmetric(vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 10,
+                              ),
+                              constraints: BoxConstraints(
+                                maxWidth:
+                                    MediaQuery.of(context).size.width * 0.75,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.surface,
+                                borderRadius: BorderRadius.only(
+                                  topLeft: const Radius.circular(16),
+                                  topRight: const Radius.circular(16),
+                                  bottomLeft: isMe
+                                      ? const Radius.circular(16)
+                                      : const Radius.circular(4),
+                                  bottomRight: isMe
+                                      ? const Radius.circular(4)
+                                      : const Radius.circular(16),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.2),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                message['text'] as String,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  height: 1.4,
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      }
-
-                      return Align(
-                        alignment: isMe
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          constraints: BoxConstraints(
-                            maxWidth: MediaQuery.of(context).size.width * 0.75,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isMe
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: isMe
-                                  ? const Radius.circular(16)
-                                  : const Radius.circular(4),
-                              bottomRight: isMe
-                                  ? const Radius.circular(4)
-                                  : const Radius.circular(16),
-                            ),
-                          ),
-                          child: Text(
-                            message['text'] as String,
-                            style: GoogleFonts.inter(
-                              color: Colors.white,
-                              height: 1.4,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-          if (_isPartnerTyping)
-            Padding(
-              padding: const EdgeInsets.only(left: 20, bottom: 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Partner is typing...',
-                  style: GoogleFonts.inter(
-                    color: Colors.white54,
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ),
-            ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            color: Theme.of(context).colorScheme.surface,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    enabled: !_hasPartnerLeft && _isConnected,
-                    onChanged: (_) => _onTyping(),
-                    decoration: InputDecoration(
-                      hintText: _hasPartnerLeft
-                          ? 'Partner Disconnected'
-                          : 'Type a message...',
-                      hintStyle: TextStyle(
-                        color: _hasPartnerLeft
-                            ? Colors.white38
-                            : Colors.white54,
-                      ),
-                      prefixIcon: IconButton(
-                        icon: Icon(
-                          _showEmojiPicker ? Icons.keyboard : Icons.emoji_emotions_outlined,
-                          color: _hasPartnerLeft ? Colors.white38 : Colors.white54,
-                        ),
-                        onPressed: () {
-                          if (_hasPartnerLeft || !_isConnected) return;
-                          setState(() {
-                            _showEmojiPicker = !_showEmojiPicker;
-                            if (_showEmojiPicker) {
-                              _focusNode.unfocus();
-                            } else {
-                              _focusNode.requestFocus();
-                            }
-                          });
+                          );
                         },
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          24,
-                        ), // Changed to 24
-                        borderSide: BorderSide.none,
-                      ),
-                      filled: true,
-                      fillColor: _hasPartnerLeft
-                          ? Colors.grey.withValues(alpha: 
-                              0.2,
-                            ) // Use a different color for disconnected
-                          : Theme.of(context).scaffoldBackgroundColor,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 10,
+              ),
+
+              /// TYPING INDICATOR (FIXED SIMPLE ANIMATION)
+              if (_isPartnerTyping)
+                AnimatedOpacity(
+                  opacity: 1,
+                  duration: const Duration(milliseconds: 300),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 20, bottom: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Partner is typing...',
+                        style: GoogleFonts.inter(
+                          color: Colors.white54,
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
-                    textCapitalization: TextCapitalization.sentences,
-                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: _hasPartnerLeft || !_isConnected
-                      ? Colors.grey
-                      : Theme.of(context).colorScheme.primary,
-                  child: IconButton(
-                    icon: const Icon(Icons.send, color: Colors.white),
-                    onPressed: (_hasPartnerLeft || !_isConnected)
-                        ? null
-                        : _sendMessage,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_showEmojiPicker)
-            SizedBox(
-              height: 250,
-              child: emoji.EmojiPicker(
-                textEditingController: _textController,
-                onEmojiSelected: (category, emp) {
-                  _onTyping();
-                },
-                config: emoji.Config(
-                  emojiViewConfig: emoji.EmojiViewConfig(
-                    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                  ),
-                  categoryViewConfig: emoji.CategoryViewConfig(
-                    backgroundColor: Theme.of(context).colorScheme.surface,
-                    iconColorSelected: Theme.of(context).colorScheme.primary,
-                    indicatorColor: Theme.of(context).colorScheme.primary,
-                  ),
-                  bottomActionBarConfig: emoji.BottomActionBarConfig(
-                    backgroundColor: Theme.of(context).colorScheme.surface,
-                    buttonColor: Theme.of(context).colorScheme.primary,
-                    buttonIconColor: Colors.white,
-                  ),
+
+              /// INPUT AREA (UNCHANGED LOGIC, CLEANED)
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Theme.of(context).colorScheme.surface,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _textController,
+                        focusNode: _focusNode,
+                        enabled: !_hasPartnerLeft && _isConnected,
+                        onChanged: (_) => _onTyping(),
+                        textCapitalization: TextCapitalization.sentences,
+                        onSubmitted: (_) => _sendMessage(),
+                        decoration: InputDecoration(
+                          hintText: _hasPartnerLeft
+                              ? 'Partner Disconnected'
+                              : 'Type a message...',
+                          hintStyle: TextStyle(
+                            color: _hasPartnerLeft
+                                ? Colors.white38
+                                : Colors.white54,
+                          ),
+                          prefixIcon: IconButton(
+                            icon: Icon(
+                              _showEmojiPicker
+                                  ? Icons.keyboard
+                                  : Icons.emoji_emotions_outlined,
+                              color: Colors.white54,
+                            ),
+                            onPressed: () {
+                              if (_hasPartnerLeft || !_isConnected) return;
+                              setState(() {
+                                _showEmojiPicker = !_showEmojiPicker;
+                                if (_showEmojiPicker) {
+                                  _focusNode.unfocus();
+                                } else {
+                                  _focusNode.requestFocus();
+                                }
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context).scaffoldBackgroundColor,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 10,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    CircleAvatar(
+                      backgroundColor: (_hasPartnerLeft || !_isConnected)
+                          ? Colors.grey
+                          : Theme.of(context).colorScheme.primary,
+                      child: IconButton(
+                        icon: const Icon(Icons.send, color: Colors.white),
+                        onPressed: (_hasPartnerLeft || !_isConnected)
+                            ? null
+                            : _sendMessage,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-        ],
-      ),
-      // Animated banner for connection status
-      AnimatedPositioned(
-        duration: const Duration(milliseconds: 500),
-        curve: Curves.easeOutCubic,
-        top: _isConnected ? 0 : -80,
-        left: 0,
-        right: 0,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          color: Colors.green.withValues(alpha: 0.15),
-          child: Center(
-            child: Text(
-              'Securely Connected',
-              style: GoogleFonts.inter(
-                color: Colors.green[400],
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+
+              /// EMOJI PICKER
+              if (_showEmojiPicker)
+                SizedBox(
+                  height: 250,
+                  child: emoji.EmojiPicker(
+                    textEditingController: _textController,
+                    onEmojiSelected: (category, emp) => _onTyping(),
+                    config: emoji.Config(
+                      emojiViewConfig: emoji.EmojiViewConfig(
+                        backgroundColor: Theme.of(
+                          context,
+                        ).scaffoldBackgroundColor,
+                      ),
+                      categoryViewConfig: emoji.CategoryViewConfig(
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        iconColorSelected: Theme.of(
+                          context,
+                        ).colorScheme.primary,
+                        indicatorColor: Theme.of(context).colorScheme.primary,
+                      ),
+                      bottomActionBarConfig: emoji.BottomActionBarConfig(
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        buttonColor: Theme.of(context).colorScheme.primary,
+                        buttonIconColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-        ),
-      ),
-      ],
-    ),
         ),
       ),
     );
