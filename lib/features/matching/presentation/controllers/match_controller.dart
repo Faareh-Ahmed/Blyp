@@ -34,6 +34,10 @@ class MatchController extends StateNotifier<AsyncValue<MatchResult?>> {
     state = const AsyncValue.loading();
     _isCancelled = false;
 
+    // Guard: Ensure any existing subscription is cancelled
+    await _matchSubscription?.cancel();
+    _matchSubscription = null;
+
     // 1. Initial check
     try {
       final result = await _repository.findMatch();
@@ -52,11 +56,11 @@ class MatchController extends StateNotifier<AsyncValue<MatchResult?>> {
 
     // 2. Subscribe to real-time updates if no immediate match
     _matchSubscription?.cancel();
-    // Use a more generous lookback period (e.g. 1 minute) or rely on other mechanisms
-    // Relying on client vs server time is risky. Let's use 60 seconds to be safe against clock skew.
-    // Ideally we should use server time, but for now a generous buffer helps.
+    // Use a small buffer to account for the time between the find_match RPC call
+    // and the postgresChanges subscription being established.
+    // Since we use postgresChanges (INSERT only), stale matches are not picked up.
     final searchStartTime = DateTime.now().subtract(
-      const Duration(seconds: 60),
+      const Duration(seconds: 5),
     );
 
     _matchSubscription = _repository

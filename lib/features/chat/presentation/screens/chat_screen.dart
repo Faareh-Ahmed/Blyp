@@ -244,27 +244,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  void _leaveChat() {
-    showDialog(
+  void _leaveChat() async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Exit Chat'),
         content: const Text('Are you sure you want to exit the chat?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              context.go('/interests');
-            },
+            onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Confirm', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
+
+    if (confirmed == true && mounted) {
+      // 1. Unsubscribe from channel immediately
+      _channel.unsubscribe();
+
+      // 2. Ensure both users' searching is stopped in database
+      final myUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (myUserId != null) {
+        try {
+          await Supabase.instance.client.rpc(
+            'leave_chat',
+            params: {
+              'leaving_user_id': myUserId,
+              'partner_id': widget.partnerId,
+            },
+          );
+        } catch (e) {
+          debugPrint('Error clearing searching status: $e');
+        }
+      }
+
+      if (mounted) {
+        context.go('/interests');
+      }
+    }
   }
 
   @override

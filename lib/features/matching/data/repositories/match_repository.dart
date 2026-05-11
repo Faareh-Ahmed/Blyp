@@ -60,59 +60,61 @@ class MatchRepository {
       'Subscribing to matches for user: $userId (minCreatedAt: $minCreatedAt)',
     );
 
-    // Listen for INSERT events on the 'matches' table using postgresChanges
-    return _supabase
-        .from('matches')
-        .stream(primaryKey: ['id'])
-        .order('created_at', ascending: false)
-        .map((maps) {
-          // Stream returns a List<Map<String, dynamic>> of rows
-          // We assume RLS allows us to see rows where we are user_1 or user_2
-          if (maps.isEmpty) {
-            print('Stream: No matches yet');
-            return null;
-          }
+    late RealtimeChannel channel;
+    late StreamController<MatchResult> controller;
 
-          // Client-side filtering to be double sure and safe
-          final relevantMatches = maps.where((data) {
+    controller = StreamController<MatchResult>(
+      onListen: () {
+        channel = _supabase.channel('matches_realtime_$userId');
+
+        channel.onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          table: 'matches',
+          schema: 'public',
+          callback: (payload) {
+            final data = payload.newRecord;
             final isUser = data['user_1'] == userId || data['user_2'] == userId;
-            if (!isUser) return false;
+            if (!isUser) {
+              print('PostgresChange: Not our match, skipping');
+              return;
+            }
 
             if (minCreatedAt != null) {
               final createdAtStr = data['created_at'] as String?;
-              if (createdAtStr == null) return false; // Should not happen
+              if (createdAtStr == null) {
+                print('PostgresChange: No created_at, skipping');
+                return;
+              }
               final createdAt = DateTime.tryParse(createdAtStr);
               if (createdAt == null || createdAt.isBefore(minCreatedAt)) {
-                return false;
+                print('PostgresChange: Match too old, skipping');
+                return;
               }
             }
-            return true;
-          }).toList();
 
-          if (relevantMatches.isEmpty) {
-            print('Stream: No relevant matches found (after filtering)');
-            return null;
-          }
+            if (controller.isClosed) return;
 
-          print('Stream: Found relevant match: ${relevantMatches.first}');
-          return relevantMatches.first;
-        })
-        .where((data) => data != null)
-        .map((data) {
-          final matchData = data!;
-          // Determine who the matched user is
-          final user1 = matchData['user_1'] as String;
-          final user2 = matchData['user_2'] as String;
-          final matchedUserId = (user1 == userId) ? user2 : user1;
+            final user1 = data['user_1'] as String;
+            final user2 = data['user_2'] as String;
+            final matchedUserId = (user1 == userId) ? user2 : user1;
 
-          return MatchResult(
-            roomId: matchData['room_id'] as String,
-            matchedUserId: matchedUserId,
-            createdAt: matchData['created_at'] != null
-                ? DateTime.parse(matchData['created_at'] as String)
-                : null,
-          );
-        });
+            print('PostgresChange: Match found for user $userId');
+            controller.add(MatchResult(
+              roomId: data['room_id'] as String,
+              matchedUserId: matchedUserId,
+              createdAt: data['created_at'] != null
+                  ? DateTime.parse(data['created_at'] as String)
+                  : null,
+            ));
+          },
+        ).subscribe();
+      },
+      onCancel: () {
+        channel.unsubscribe();
+      },
+    );
+
+    return controller.stream;
   }
 
   Stream<int> subscribeToOnlineUsers() {

@@ -34,7 +34,9 @@ void main() {
 
     when(() => mockRepository.findMatch()).thenAnswer((_) async => null);
     when(
-      () => mockRepository.subscribeToMatches(),
+      () => mockRepository.subscribeToMatches(
+        minCreatedAt: any(named: 'minCreatedAt'),
+      ),
     ).thenAnswer((_) => streamController.stream);
 
     await controller.startSearching();
@@ -63,7 +65,9 @@ void main() {
 
     when(() => mockRepository.findMatch()).thenAnswer((_) async => null);
     when(
-      () => mockRepository.subscribeToMatches(),
+      () => mockRepository.subscribeToMatches(
+        minCreatedAt: any(named: 'minCreatedAt'),
+      ),
     ).thenAnswer((_) => streamController.stream);
     when(() => mockRepository.cancelSearch()).thenAnswer((_) async {});
 

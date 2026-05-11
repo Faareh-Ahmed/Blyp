@@ -55,7 +55,11 @@ void main() {
       ),
     );
     verify(() => mockRepository.findMatch()).called(1);
-    verifyNever(() => mockRepository.subscribeToMatches());
+    verifyNever(
+      () => mockRepository.subscribeToMatches(
+        minCreatedAt: any(named: 'minCreatedAt'),
+      ),
+    );
   });
 
   test('startSearching subscribes to stream if no match immediately', () async {
@@ -65,7 +69,9 @@ void main() {
     );
     when(() => mockRepository.findMatch()).thenAnswer((_) async => null);
     when(
-      () => mockRepository.subscribeToMatches(),
+      () => mockRepository.subscribeToMatches(
+        minCreatedAt: any(named: 'minCreatedAt'),
+      ),
     ).thenAnswer((_) => Stream.value(matchResult));
     when(() => mockRepository.cancelSearch()).thenAnswer((_) async {});
 
@@ -85,7 +91,11 @@ void main() {
       ),
     );
     verify(() => mockRepository.findMatch()).called(1);
-    verify(() => mockRepository.subscribeToMatches()).called(1);
+    verify(
+      () => mockRepository.subscribeToMatches(
+        minCreatedAt: any(named: 'minCreatedAt'),
+      ),
+    ).called(1);
   });
 
   test('startSearching handles errors', () async {
