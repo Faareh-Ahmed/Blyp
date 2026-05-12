@@ -59,9 +59,7 @@ class MatchController extends StateNotifier<AsyncValue<MatchResult?>> {
     // Use a small buffer to account for the time between the find_match RPC call
     // and the postgresChanges subscription being established.
     // Since we use postgresChanges (INSERT only), stale matches are not picked up.
-    final searchStartTime = DateTime.now().subtract(
-      const Duration(seconds: 5),
-    );
+    final searchStartTime = DateTime.now().subtract(const Duration(seconds: 5));
 
     _matchSubscription = _repository
         .subscribeToMatches(minCreatedAt: searchStartTime)
